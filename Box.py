@@ -4,7 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 
-size=[300,200]
+size=[300,300]
+size=[180,180]
 lengthUnit="mm"
 filename="box.svg"
 
@@ -82,13 +83,9 @@ def rotate3dV(list, angle, vRot, cent=[0, 0, 0]):
         ,cent) for v in list]
 def rotate3dYPR(list, ypr, cent=[0, 0, 0]):
     return rotate3dV(rotate3dV(rotate3dV(list,ypr[2],[1,0,0],cent),ypr[1],[0,1,0],cent),ypr[0],[0,0,1],cent)
-def vGetYPR(p0,p1,p2,p3):
+def vGetYPR(p0,p1,p3):
     v01 = vSub(p1,p0)
-    v02 = vSub(p2,p0)
     v03 = vSub(p3,p0)
-    v21 = vSub(p1,p2)
-    v20 = vSub(p0,p2)
-    v23 = vSub(p3,p2)
     wallAngleYaw = math.atan2(v01[1],v01[0])
     wallAnglePitch = -math.atan2(v01[2],vLen([v01[0],v01[1]]))
     wallAngleRoll = -(vAngleSgn(vCross(v03,v01),vCross([0,0,1],v01 if (v01[0] != 0 or v01[1] != 0) else [1,0,0]),v01)) # TODO: Check for inner edges
@@ -149,7 +146,7 @@ def connectionLineTypeReductionFingerLength(ct, matStrength, angle, positiveEdge
     lengthReduction += matStrength/2 * 1/math.tan(angle/2) - (0 if positiveEdge else fingerLength) #Length from the center to the border of the wall and reduction from the holes / negative fingers.
 #    fingerLength = matStrength
 #    lengthReduction = 0*max(0,min(-matStrength/math.tan(angle),-fingerLength*math.cos(angle)/2)+matStrength*(math.sin(angle/2)*math.tan(angle/2)))
-    return lengthReduction, fingerLength
+    return lengthReduction, fingerLength #TODO: It is a little bit less messy when the positive and negative finger start and end at the same position
 
 #return coords,reduction in length
 def connectionLineType(ct, matStrength, angle, length, play, positive, widthFinger=None, widthSpaces=None, minSurroundingSpacesLeft=None, minSurroundingSpacesRight=None, addCornerLeftWidth=0, addCornerRightWidth=0):
@@ -184,13 +181,12 @@ def findFaces(netlist, nodes):
     if len(nodes) > 4: # Implement Check if one area for more corners
         return []
     for nextNode in netlist[nodes[-1]]:
-        if len(nodes) >= 2 and nextNode == nodes[-2]:
-            continue
         if nextNode == nodes[0]:
+            if len(nodes) < 3:
+                continue # Not a full face
             return [nodes]
         if nextNode in nodes:
-            print("found loop, not starting at the beginning")
-            return []
+            continue # Found loop, not starting at the beginning
         allFaces = addFaces(allFaces, findFaces(netlist, nodes + [nextNode]))
     return allFaces
 
@@ -204,7 +200,7 @@ def findOtherFacePoint(p0,p1,pi=-1): #Find the back point of p0, p0 and p1 are s
             return face[(posP0+posP0-posP1+len(face))%len(face)]
     print('No Other Face Point found')
 
-def wall(p,wallNr,matStrength,play,edgeTypeAll):
+def wall(p,wallNr,matStrength,play,edgeTypeAll,widthFinger=None, widthSpaces=None):
     face = facesAll[wallNr]
     coords=[]
     pOrig0 = p[face[0]]
@@ -228,10 +224,10 @@ def wall(p,wallNr,matStrength,play,edgeTypeAll):
         p3 = p[p3nr]
         b01_0nr = findOtherFacePoint(p0nr,p1nr,p2nr)
         b01_1nr = findOtherFacePoint(p1nr,p0nr,p2nr)
-        b03_0nr = findOtherFacePoint(p0nr,p3nr,p2nr)
-        b03_3nr = findOtherFacePoint(p3nr,p0nr,p2nr)
-        b12_1nr = findOtherFacePoint(p1nr,p2nr,p3nr)
-        b12_2nr = findOtherFacePoint(p2nr,p1nr,p3nr)
+        b03_0nr = findOtherFacePoint(p0nr,p3nr,p1nr)
+        b03_3nr = findOtherFacePoint(p3nr,p0nr,p1nr)
+        b12_1nr = findOtherFacePoint(p1nr,p2nr,p0nr)
+        b12_2nr = findOtherFacePoint(p2nr,p1nr,p0nr)
         b01_0 = p[b01_0nr]
         b01_1 = p[b01_1nr]
         b03_0 = p[b03_0nr]
@@ -262,7 +258,10 @@ def wall(p,wallNr,matStrength,play,edgeTypeAll):
         addCornerLeftWidth = - lengthReduction * math.tan(math.pi/2-angleCornerLeft) - lengthReductionLeft / math.cos(math.pi/2-angleCornerLeft)
         addCornerRightWidth = - lengthReduction * math.tan(math.pi/2-angleCornerRight) - lengthReductionRight / math.cos(math.pi/2-angleCornerRight)
 
-        coordsSide = connectionLineType(edgeTypeAll,matStrength,angleEdge,lenSide,play,edgePos01,minSurroundingSpacesLeft=minSurroundingSpacesLeft,minSurroundingSpacesRight=minSurroundingSpacesRight,addCornerLeftWidth=addCornerLeftWidth,addCornerRightWidth=addCornerRightWidth)
+        #minSurroundingSpacesLeft = 0#lengthReduction / math.tan(angleCornerMinLeft/2)
+        #minSurroundingSpacesRight = 0#lengthReduction / math.tan(angleCornerMinRight/2)
+
+        coordsSide = connectionLineType(edgeTypeAll,matStrength,angleEdge,lenSide,play,edgePos01,widthFinger,widthSpaces,minSurroundingSpacesLeft,minSurroundingSpacesRight,addCornerLeftWidth,addCornerRightWidth)
         angle2d = vAngleSgn(vSub(pOrig1, pOrig0), vSub(p1, p0), norm)
         angle2dOrig = 0 if side == 0 else vAngleSgn(vSub(pOrig1,pOrig0),vSub(p0,pOrig0),norm)
         pos2d = [math.cos(angle2dOrig) * lenOrig, math.sin(angle2dOrig) * lenOrig]
@@ -278,11 +277,11 @@ def drawCoords3d(coords):
     ax.plot(data[0],data[1],data[2], label='w1')
 
 def drawWall(wallNr,points,matStrength,coords,displayInner=1,displayOuter=0,displayCenter=0):
-    p0 = points[facesAll[wallNr][0]]
-    p1 = points[facesAll[wallNr][1]]
-    p2 = points[facesAll[wallNr][2]]
-    p3 = points[facesAll[wallNr][3]]
-    centerP0123 = vCenter([p0,p1,p2,p3])
+    face = facesAll[wallNr]
+    p0 = points[face[0]]
+    p1 = points[face[1]]
+    p3 = points[face[-1]]
+    centerP0123 = vCenter([points[p] for p in face])
     v01 = vSub(p1,p0)
     v03 = vSub(p3,p0)
     v01x03 = vCross(v03, v01)
@@ -290,7 +289,7 @@ def drawWall(wallNr,points,matStrength,coords,displayInner=1,displayOuter=0,disp
     vWall = vScal(v01x03,matStrength/2*(1/vLen(v01x03) if vLen(v01x03) != 0 else 1)*(1 if vDot(v01x03,vSub(centerP0123,centerPoints)) > 0 else -1))
 
     coords = [[i[0],0,i[1]] for i in coords]
-    coords = rotate3dYPR(coords, vGetYPR(p0,p1,p2,p3))
+    coords = rotate3dYPR(coords, vGetYPR(p0,p1,p3))
     coords = addToAll(p0,coords)
     coordsOut = addToAll(vWall,coords)
     coordsIn = addToAll(vScal(vWall,-1),coords)
@@ -323,8 +322,7 @@ netlist = [
 ]
 
 points=mulToAll([60,60,60],[[0,1,0],[0,0,0],[1,0,0],[1,1,0],[0,1,1],[0,0,1],[1,0,1],[1,1,1],[0,1,2],[0,0,2],[1,0,2],[1,1,2]]) # Cube
-points=mulToAll([40,40,40],[[0,1,0],[0,0,0],[1,0,0],[1,1,0],[0,1,1],[0,0,1],[1,0,1],[1,1,1],[-0.5,1.5,2],[-0.5,-0.5,2],[1.5,-0.5,2],[1.5,1.5,2]]) # Cube
-
+points=mulToAll([25,25,25],[[0,1,0],[0,0,0],[1,0,0],[1,1,0],[0,1,1],[0,0,1],[1,0,1],[1,1,1],[-0.5,1.5,2],[-0.5,-0.5,2],[1.5,-0.5,2],[1.5,1.5,2]]) # Cube
 netlist = [
     [1,3,4],    # 0
     [2,5],      # 1
@@ -340,17 +338,58 @@ netlist = [
     [],         # 11
 ]
 
+#Pyramide
+points = mulToAll([20,20,20],[[1,1,0],[-1,1,0],[-1,-1,0],[1,-1,0],[0,0,1]])
+netlist = [[1,3,4],[2,4],[3,4],[4],[]]
+
+
+# Air Window Outlet
+points=mulToAll([150/2,150/2,150],[
+    [-1,-1,0],[1,-1,0],
+    [-1,1,1],[1,1,1],[1,-1,1],[-1,-1,1],])+\
+addToAll([0,0,150*2],mulToAll([195,30,30],[
+    [-1,1,0],[1,1,0],[1,-1,0],[-1,-1,0],]))+\
+addToAll([0,0,150*2+30],mulToAll([195,30,295],[
+    [-1,1,0],[1,1,0],[1,-1,0],[-1,-1,0],
+    [-1,1,1],[1,1,1],[1,-1,1],[-1,-1,1],]))+\
+addToAll([0,0,150*2+30+295*2],mulToAll([195,30,30],[
+    [-1,1,0],[1,1,0],[1,-1,0],[-1,-1,0],
+    [-1,1,1],[1,1,1],[1,-1,2],[-1,-1,2],
+    [1,0,3],[-1,0,3],
+    [1,1,4],[-1,1,4],]))
+points = addToAll([0,0,-(150*2+30+295*2+30*4)],mulToAll([1/6,1/3,1],points))
+netlist = [[1,2,5],[3,4]]+\
+          [vAdd(vScal([1,1,1],2+iz*4),[i,(i+3)%4,i+4]) for iz in range(5) for i in range(4)]+\
+    [[23,25,27,29],[24,26,28],[26,25],[27],
+     [27,28],[29],
+     [29],[]]
+#Sum Edges 59
+
+#Three Edge Test
+points = mulToAll([60,60,60],[[-1,1,0],[1,1,0],[1,-1,0],[-1,-1,0],[-1,0,1],[1,0,1],[-1,1,2],[1,1,2]])
+netlist = [[1,3,4,6],[2,5,7],[3,5],[4],[5,6],[7],[7],[]]
+
 nodeCnt = len(netlist)
 fullNetlist = [[] for i in range(nodeCnt)]
 for n0 in range(len(netlist)):
     for n1 in netlist[n0]:
-        fullNetlist[n0].append(n1)
-        fullNetlist[n1].append(n0)
+        if n1 not in fullNetlist[n0]:
+            fullNetlist[n0].append(n1)
+        if n0 not in fullNetlist[n1]:
+            fullNetlist[n1].append(n0)
 netlist = fullNetlist
 
 facesAll = []
 for nodeNr in range(nodeCnt):
     facesAll = addFaces(facesAll, findFaces(netlist, [nodeNr]))
+#Remove nested faces
+facesSel = []
+for face in facesAll:
+        sumFaces = [0 for faceSearch in facesAll if len(face) > len(faceSearch) and len([0 for faceSearchCorner in faceSearch if faceSearchCorner in face]) == len(faceSearch)]
+        if not sumFaces: # TODO Allow Outside Edges => 1
+            facesSel.append(face)
+            continue
+facesAll = facesSel
 # Remove faces in the inner of the body
 facesSel = []
 for face in facesAll:
@@ -363,15 +402,15 @@ facesAll = facesSel
 
 centerPoints = vCenter(points)
 
-materialStrength = 6
-play = 1#0.14 #TODO
-coords = [wall(points,wallNr,materialStrength,play,ctMax) for wallNr in range(len(facesAll))]
+materialStrength = 3
+play = -0.14 #TODO
+coords = [wall(points,wallNr,materialStrength,play,ctWallSize) for wallNr in range(len(facesAll))]
 
 fig = plt.figure()
 ax = fig.gca(projection='3d')
-ax.set_xlim3d(0,100)
-ax.set_ylim3d(0,100)
-ax.set_zlim3d(0,100)
+ax.set_xlim3d(-100,100)
+ax.set_ylim3d(-100,100)
+ax.set_zlim3d(-100,100)
 ax.scatter([p[0] for p in points],[p[1] for p in points],[p[2] for p in points], label='w1')
 [drawWall(i,points,materialStrength,coords[i],displayOuter=0) for i in range(len(coords))]
 
@@ -387,7 +426,7 @@ for cCoords in coords:
         maxYInRow = 0
     posX -= cPosMin[0]
     maxYInRow = max(cPosMax[1]-cPosMin[1],maxYInRow)
-    export_svg_svgwrite(addToAll([posX,posY-cPosMin[1]], cCoords))
+    export_svg_svgwrite(addToAll([posX,posY-cPosMin[1]], cCoords),engrave=0)
     posX += cPosMax[0] + space
 
 dwg.save()
