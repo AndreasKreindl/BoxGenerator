@@ -1,11 +1,11 @@
 import svgwrite
 import math
-import numpy as np
 import matplotlib.pyplot as plt
 import sys
+import vector as v
 
-size=[300,300]
-size=[180,180]
+size=[300,4000]
+#size=[180,180]
 lengthUnit="mm"
 filename="box.svg"
 
@@ -31,74 +31,6 @@ def export_svg_svgwrite(path, line_width=0.2, engrave=1):
         s = ''.join(str_list)
         dwg.add(dwg.path(s).stroke(color="rgb(0,0,255)" if engrave else "rgb(255,0,0)",width=line_width).fill("none"))
 #export_svg_svgwrite(path=[[0,0],[0,10],[10,10],[10,0],[0,0]],engrave=0)
-
-def addToAll(elem,list):
-    return [[x[i]+elem[i] for i in range(len(elem))] for x in list]
-def mulToAll(elem,list):
-    return [[x[i]*elem[i] for i in range(len(elem))] for x in list]
-def vlMax(l):
-    return [max([v[i] for v in l]) for i in range(len(l[0]))]
-def vlMin(l):
-    return [min([v[i] for v in l]) for i in range(len(l[0]))]
-def vlMinMax(l):
-    cMax = vlMax(l)
-    cMin = vlMin(l)
-    return cMin, cMax
-def vlPosSize(l):
-    cMax, cMin = vlMinMax(l)
-    return cMin, vSub(cMax,cMin)
-def vScal(v,s):
-    return [i*s for i in v]
-def vLen(v):
-    return math.sqrt(sum([i**2 for i in v]))
-def vDot(v0,v1):
-    return sum([i0*i1 for i0,i1 in zip(v0,v1)])
-def vCross(a, b):
-    return [a[1]*b[2] - a[2]*b[1],
-            a[2]*b[0] - a[0]*b[2],
-            a[0]*b[1] - a[1]*b[0]]
-def vSub(v0,v1):
-    return [i0-i1 for i0,i1 in zip(v0,v1)]
-def vAdd(v0,v1):
-    return [i0+i1 for i0,i1 in zip(v0,v1)]
-def vAngle(v0,v1):
-    if(vLen(v0)==0 or vLen(v1)==0):
-        return 0
-    return math.acos(min(max(vDot(v0,v1)/vLen(v0)/vLen(v1),-1),1))
-def vPntAngle(p0,p1,p2):#p1 is the middle one
-    return vAngle(vSub(p0,p1),vSub(p2,p1))
-def vAngleSgn(v0,v1,norm):
-    if(vLen(v0)==0 or vLen(v1)==0):
-        return 0
-    return vAngle(v0,v1) * (1 if vDot(vCross(v0,v1),norm) > 0 else -1) # TODO: Check for inner edges
-def vPntAngleSgn(p0,p1,p2,norm):#p1 is the middle one
-    return vAngleSgn(vSub(p0,p1),vSub(p2,p1),norm)
-def vCenter(pnts):
-    return [sum([p[i] for p in pnts]) / len(pnts) for i in range(len(pnts[0]))]
-def rotate3dV(list, angle, vRot, cent=[0, 0, 0]):
-    return [vAdd(vAdd(vAdd(
-        vScal(vSub(v,cent),math.cos(angle)),
-        vScal(vCross(vRot,vSub(v,cent)),math.sin(angle))),
-        vScal(vRot,vDot(vRot,vSub(v,cent))*(1-math.cos(angle))))
-        ,cent) for v in list]
-def rotate3dYPR(list, ypr, cent=[0, 0, 0]):
-    return rotate3dV(rotate3dV(rotate3dV(list,ypr[2],[1,0,0],cent),ypr[1],[0,1,0],cent),ypr[0],[0,0,1],cent)
-def vGetYPR(p0,p1,p3):
-    v01 = vSub(p1,p0)
-    v03 = vSub(p3,p0)
-    wallAngleYaw = math.atan2(v01[1],v01[0])
-    wallAnglePitch = -math.atan2(v01[2],vLen([v01[0],v01[1]]))
-    wallAngleRoll = -(vAngleSgn(vCross(v03,v01),vCross([0,0,1],v01 if (v01[0] != 0 or v01[1] != 0) else [1,0,0]),v01)) # TODO: Check for inner edges
-    return [wallAngleYaw,wallAnglePitch,wallAngleRoll]
-
-
-# 1234 Clockwise front side
-# 5678 Clockwise back side (Seen through cube)
-#  5     8
-# 1     4
-#
-#  6     7
-# 2     3
 
 def connectionLine(length,play,positive,widthFinger,widthSpaces,minSurroundingSpacesLeft,minSurroundingSpacesRight,fingerLength,angleSnag=0):
     #finger goes to negative y
@@ -146,7 +78,7 @@ def connectionLineTypeReductionFingerLength(ct, matStrength, angle, positiveEdge
     lengthReduction += matStrength/2 * 1/math.tan(angle/2) - (0 if positiveEdge else fingerLength) #Length from the center to the border of the wall and reduction from the holes / negative fingers.
 #    fingerLength = matStrength
 #    lengthReduction = 0*max(0,min(-matStrength/math.tan(angle),-fingerLength*math.cos(angle)/2)+matStrength*(math.sin(angle/2)*math.tan(angle/2)))
-    return lengthReduction, fingerLength #TODO: It is a little bit less messy when the positive and negative finger start and end at the same position
+    return lengthReduction, fingerLength
 
 #return coords,reduction in length
 def connectionLineType(ct, matStrength, angle, length, play, positive, widthFinger=None, widthSpaces=None, minSurroundingSpacesLeft=None, minSurroundingSpacesRight=None, addCornerLeftWidth=0, addCornerRightWidth=0):
@@ -165,16 +97,26 @@ def connectionLineType(ct, matStrength, angle, length, play, positive, widthFing
     coords.append([-addCornerRightWidth,0])
     coords.extend(connectionLine(length,play,positive,widthFinger,widthSpaces,minSurroundingSpacesLeft,minSurroundingSpacesRight,fingerLength,0))
     coords.append([length+addCornerLeftWidth,0])
-    return addToAll([0,lengthReduction],coords)
+    return v.addToAll([0,lengthReduction],coords)
 
-def addFaces(edges, newEdges):
-    for newEdge in newEdges:
-        posSmallest = newEdge.index(min(newEdge))
-        directionUp = 1 if (newEdge[(posSmallest+1)%len(newEdge)] < newEdge[(posSmallest-1+len(newEdge))%len(newEdge)]) else -1
-        normalizedEdge = [newEdge[(posSmallest+directionUp*i+len(newEdge))%len(newEdge)] for i in range(len(newEdge))]
-        if normalizedEdge not in edges:
-            edges += [normalizedEdge]
-    return edges
+def standardiceFace(face):
+    posSmallest = face.index(min(face))
+    directionUp = 1 if (face[(posSmallest+1)%len(face)] < face[(posSmallest-1+len(face))%len(face)]) else -1
+    return [face[(posSmallest+directionUp*i+len(face))%len(face)] for i in range(len(face))]
+
+def addFaces(faces, newFaces):
+    for newFace in newFaces:
+        standardicedFace = standardiceFace(newFace)
+        if standardicedFace not in faces:
+            faces += [standardicedFace]
+    return faces
+
+def removeFaces(faces, removeFaces):
+    for removeFace in removeFaces:
+        standardicedFace = standardiceFace(removeFace)
+        if standardicedFace in faces:
+            faces.remove(standardicedFace)
+    return faces
 
 def findFaces(netlist, nodes):
     allFaces = []
@@ -189,6 +131,40 @@ def findFaces(netlist, nodes):
             continue # Found loop, not starting at the beginning
         allFaces = addFaces(allFaces, findFaces(netlist, nodes + [nextNode]))
     return allFaces
+
+def createFaces(netlist):
+    facesAll = []
+    for nodeNr in range(len(netlist)):
+        facesAll = addFaces(facesAll, findFaces(netlist, [nodeNr]))
+    # Remove nested faces
+    facesSel = []
+    for face in facesAll:
+        sumFaces = [0 for faceSearch in facesAll if len(face) > len(faceSearch) and len(
+            [0 for faceSearchCorner in faceSearch if faceSearchCorner in face]) == len(faceSearch)]
+        if not sumFaces:  # TODO Allow Outside Edges => 1
+            facesSel.append(face)
+            continue
+    facesAll = facesSel
+    # Remove faces in the inner of the body
+    facesSel = []
+    for face in facesAll:
+        for side in range(len(face)):
+            sumFaces = len([0 for faceSearch in facesAll if
+                            face[side] in faceSearch and face[(side + 1) % len(face)] in faceSearch])
+            if sumFaces == 2:
+                facesSel.append(face)
+                break
+    return facesSel
+
+def createFullNetlist(netlist):
+    fullNetlist = [[] for i in range(len(netlist))]
+    for n0 in range(len(netlist)):
+        for n1 in netlist[n0]:
+            if n1 not in fullNetlist[n0]:
+                fullNetlist[n0].append(n1)
+            if n0 not in fullNetlist[n1]:
+                fullNetlist[n1].append(n0)
+    return fullNetlist
 
 def findOtherFacePoint(p0,p1,pi=-1): #Find the back point of p0, p0 and p1 are shared, pi ist not shared
     for face in facesAll:
@@ -206,14 +182,15 @@ def wall(p,wallNr,matStrength,play,edgeTypeAll,widthFinger=None, widthSpaces=Non
     pOrig0 = p[face[0]]
     pOrig1 = p[face[1]]
     pOrig2 = p[face[2]]
-    norm = vCross(vSub(pOrig1,pOrig0),vSub(pOrig2,pOrig0))
+    norm = v.cross(v.sub(pOrig1, pOrig0), v.sub(pOrig2, pOrig0))
     sideCnt = len(face)
     for side in range(sideCnt):
         #Points:
         #0-1: aktive edge
         #2: after 1
         #3: before 0
-        #bXY_X === BYX_X === edge X-Y on the side of X
+        #bXY_X === BYX_X === point over the edge X-Y on the side of X
+        #Note: If only three corners point 2 is the same point as point 3
         p0nr = face[side]
         p1nr = face[(1+side)%sideCnt]
         p2nr = face[(2+side)%sideCnt]
@@ -236,21 +213,25 @@ def wall(p,wallNr,matStrength,play,edgeTypeAll,widthFinger=None, widthSpaces=Non
         edgePos01 = max(p3nr,p2nr) > max(b01_0nr,b01_1nr) #Positive, wen pointing out of the basic shape
         edgePos12 = max(p0nr,p3nr) > max(b12_1nr,b12_2nr)
         edgePos30 = max(p1nr,p2nr) > max(b03_0nr,b03_3nr)
-        angleCornerLeft = vPntAngle(p2,p1,p0)
-        angleCornerRight = vPntAngle(p3,p0,p1)
-        angleCornerMinLeft = min(angleCornerLeft,vPntAngle(p0,p1,b12_1))
-        angleCornerMinRight = min(angleCornerRight,vPntAngle(p1,p0,b03_0))
+        angleCornerLeft = v.pntAngle(p2, p1, p0)
+        angleCornerRight = v.pntAngle(p3, p0, p1)
+        angleCornerMinLeft = min(angleCornerLeft, v.pntAngle(b01_1, p1, p0))
+        angleCornerMinRight = min(angleCornerRight, v.pntAngle(b01_0, p0, p1))
         #MinSurroundingSpace defines a minimum of space to the inner corner)
         minSurSpaces = 1 #SurroundingSpace realtive to material strength
-        minSurroundingSpacesLeft = matStrength * max(0.5,(minSurSpaces/math.sqrt(2*(1-math.cos(angleCornerMinLeft)))+1/math.tan(angleCornerMinLeft/2))) #TODO
-        minSurroundingSpacesRight = matStrength * max(0.5,(minSurSpaces / math.sqrt(2 * (1 - math.cos(angleCornerMinRight))) + 1 / math.tan(angleCornerMinRight / 2)))
+        minSurroundingSpacesLeft = matStrength * max(1,(minSurSpaces/math.sqrt(2*(1-math.cos(angleCornerMinLeft)))+1/math.tan(angleCornerMinLeft/2))) #TODO This schitt is buggy
+        minSurroundingSpacesRight = matStrength * max(1,(minSurSpaces / math.sqrt(2 * (1 - math.cos(angleCornerMinRight))) + 1 / math.tan(angleCornerMinRight / 2)))
+        minSurroundingSpacesLeft = matStrength * (1 if angleCornerMinLeft > math.pi*0.95 else max(1,1+(minSurSpaces/math.sqrt(2*(1-math.cos(angleCornerMinLeft)))+1/math.tan(angleCornerMinLeft/2)))) #TODO
+        minSurroundingSpacesRight = matStrength * (1 if angleCornerMinLeft > math.pi*0.95 else max(1,1+(minSurSpaces / math.sqrt(2 * (1 - math.cos(angleCornerMinRight))) + 1 / math.tan(angleCornerMinRight / 2))))
+        #minSurroundingSpacesLeft = matStrength*4
+        #minSurroundingSpacesLeft = matStrength*4
 
-        lenSide = vLen(vSub(p1,p0)) # TODO
-        lenOrig = vLen(vSub(p0,pOrig0))
+        lenSide = v.vlen(v.sub(p1, p0)) # TODO
+        lenOrig = v.vlen(v.sub(p0, pOrig0))
 
-        angleEdge = vPntAngle(p3,p0,b01_0)
-        angleEdgeLeft = vPntAngle(p0,p1,b12_1)
-        angleEdgeRight = vPntAngle(p1,p0,b03_0)
+        angleEdge = v.pntAngle(p3, p0, b01_0)
+        angleEdgeLeft = v.pntAngle(p0, p1, b12_1) #TODO: Maybe not correct if the area of the points have a normal vector not parallel to the edge
+        angleEdgeRight = v.pntAngle(p1, p0, b03_0)
         lengthReduction, fingerLength = connectionLineTypeReductionFingerLength(edgeTypeAll, matStrength, angleEdge, edgePos01)
         lengthReductionLeft, fingerLengthLeft = connectionLineTypeReductionFingerLength(edgeTypeAll, matStrength, angleEdgeLeft, edgePos12)
         lengthReductionRight, fingerLengthRight = connectionLineTypeReductionFingerLength(edgeTypeAll, matStrength, angleEdgeRight, edgePos30)
@@ -258,14 +239,11 @@ def wall(p,wallNr,matStrength,play,edgeTypeAll,widthFinger=None, widthSpaces=Non
         addCornerLeftWidth = - lengthReduction * math.tan(math.pi/2-angleCornerLeft) - lengthReductionLeft / math.cos(math.pi/2-angleCornerLeft)
         addCornerRightWidth = - lengthReduction * math.tan(math.pi/2-angleCornerRight) - lengthReductionRight / math.cos(math.pi/2-angleCornerRight)
 
-        #minSurroundingSpacesLeft = 0#lengthReduction / math.tan(angleCornerMinLeft/2)
-        #minSurroundingSpacesRight = 0#lengthReduction / math.tan(angleCornerMinRight/2)
-
         coordsSide = connectionLineType(edgeTypeAll,matStrength,angleEdge,lenSide,play,edgePos01,widthFinger,widthSpaces,minSurroundingSpacesLeft,minSurroundingSpacesRight,addCornerLeftWidth,addCornerRightWidth)
-        angle2d = vAngleSgn(vSub(pOrig1, pOrig0), vSub(p1, p0), norm)
-        angle2dOrig = 0 if side == 0 else vAngleSgn(vSub(pOrig1,pOrig0),vSub(p0,pOrig0),norm)
+        angle2d = v.angleSgn(v.sub(pOrig1, pOrig0), v.sub(p1, p0), norm)
+        angle2dOrig = 0 if side == 0 else v.angleSgn(v.sub(pOrig1, pOrig0), v.sub(p0, pOrig0), norm)
         pos2d = [math.cos(angle2dOrig) * lenOrig, math.sin(angle2dOrig) * lenOrig]
-        coordsSidePositioned = addToAll(pos2d, rotate2d(coordsSide, angle2d))
+        coordsSidePositioned = v.addToAll(pos2d, rotate2d(coordsSide, angle2d))
         coords.extend(coordsSidePositioned)
     coords.append(coords[0])
     return coords
@@ -281,18 +259,18 @@ def drawWall(wallNr,points,matStrength,coords,displayInner=1,displayOuter=0,disp
     p0 = points[face[0]]
     p1 = points[face[1]]
     p3 = points[face[-1]]
-    centerP0123 = vCenter([points[p] for p in face])
-    v01 = vSub(p1,p0)
-    v03 = vSub(p3,p0)
-    v01x03 = vCross(v03, v01)
+    centerP0123 = v.center([points[p] for p in face])
+    v01 = v.sub(p1, p0)
+    v03 = v.sub(p3, p0)
+    v01x03 = v.cross(v03, v01)
     #Inside is defined as lookings from the center! Can be improved in the future.
-    vWall = vScal(v01x03,matStrength/2*(1/vLen(v01x03) if vLen(v01x03) != 0 else 1)*(1 if vDot(v01x03,vSub(centerP0123,centerPoints)) > 0 else -1))
+    vWall = v.scal(v01x03, matStrength / 2 * (1 / v.vlen(v01x03) if v.vlen(v01x03) != 0 else 1) * (1 if v.dot(v01x03, v.sub(centerP0123, centerPoint)) > 0 else -1))
 
     coords = [[i[0],0,i[1]] for i in coords]
-    coords = rotate3dYPR(coords, vGetYPR(p0,p1,p3))
-    coords = addToAll(p0,coords)
-    coordsOut = addToAll(vWall,coords)
-    coordsIn = addToAll(vScal(vWall,-1),coords)
+    coords = v.rotate3dYPR(coords, v.getYPR(p0, p1, p3))
+    coords = v.addToAll(p0,coords)
+    coordsOut = v.addToAll(vWall,coords)
+    coordsIn = v.addToAll(v.scal(vWall, -1), coords)
     if displayCenter:
         drawCoords3d(coords)
     if displayInner:
@@ -302,15 +280,15 @@ def drawWall(wallNr,points,matStrength,coords,displayInner=1,displayOuter=0,disp
 
 
 
-points=mulToAll([60,60,60],[[0,2,0],[0,0,0],[2,0,0],[0.5,0.5,0],[0,2,2],[0,0,2],[2,0,2],[0.5,0.5,2]]) # 1 inner Edge #TODO: Not correct
-points=mulToAll([80,80,80],[[0,1,0],[0,0,0],[1,0,0],[0.4,0.4,0],[0,1,1],[0,0,1],[1,0,1],[0.4,0.4,1]]) # 1 inner Edge #TODO: Not correct
-points=mulToAll([60,60,60],[[1,1,0.3],[0,0,0],[3,0,0],[2,1,0.3],[1,1,0.7],[0,0,1],[3,0,1],[2,1,0.7]]) # truncated pyramid
-points=mulToAll([60,60,60],[[0,1,0],[0,0,0],[1,0,0],[1,1,0],[0,1,1],[0,0,1],[1,0,1],[1,1,1]]) # Cube
-points=mulToAll([60,60,60],[[1,1,0.3],[0,0,0],[3,0,0],[2,1,0.3],[1,1,1.7],[0,0,1],[3,0,1],[2,1,1.7]]) # 4 trapezial sides
-points=mulToAll([60,60,60],[[0,1,0],[0,0,0],[1.5,0,0],[1,1,0],[0,1,1],[0,0,1],[1.5,0,1],[1,1,1]]) # 1 non rectangular edge
-points=mulToAll([60,60,60],[[0.5,1,0],[0,0,0],[1.5,0,0],[1,1,0],[0.5,1,1],[0,0,1],[1.5,0,1],[1,1,1]]) # 2 trapezial parallel sides
+points0=v.mulToAll([60,60,60],[[0,2,0],[0,0,0],[2,0,0],[0.5,0.5,0],[0,2,2],[0,0,2],[2,0,2],[0.5,0.5,2]]) # 1 inner Edge #TODO: Not correct
+points0=v.mulToAll([80,80,80],[[0,1,0],[0,0,0],[1,0,0],[0.4,0.4,0],[0,1,1],[0,0,1],[1,0,1],[0.4,0.4,1]]) # 1 inner Edge #TODO: Not correct
+points0=v.mulToAll([60,60,60],[[1,1,0.3],[0,0,0],[3,0,0],[2,1,0.3],[1,1,0.7],[0,0,1],[3,0,1],[2,1,0.7]]) # truncated pyramid
+points0=v.mulToAll([60,60,60],[[0,1,0],[0,0,0],[1,0,0],[1,1,0],[0,1,1],[0,0,1],[1,0,1],[1,1,1]]) # Cube
+points0=v.mulToAll([60,60,60],[[1,1,0.3],[0,0,0],[3,0,0],[2,1,0.3],[1,1,1.7],[0,0,1],[3,0,1],[2,1,1.7]]) # 4 trapezial sides
+points0=v.mulToAll([60,60,60],[[0,1,0],[0,0,0],[1.5,0,0],[1,1,0],[0,1,1],[0,0,1],[1.5,0,1],[1,1,1]]) # 1 non rectangular edge
+points0=v.mulToAll([60,60,60],[[0.5,1,0],[0,0,0],[1.5,0,0],[1,1,0],[0.5,1,1],[0,0,1],[1.5,0,1],[1,1,1]]) # 2 trapezial parallel sides
 
-netlist = [
+netlist0 = [
     [1,3,4],    # 0
     [2,5],      # 1
     [3,6],      # 2
@@ -321,9 +299,9 @@ netlist = [
     [],         #
 ]
 
-points=mulToAll([60,60,60],[[0,1,0],[0,0,0],[1,0,0],[1,1,0],[0,1,1],[0,0,1],[1,0,1],[1,1,1],[0,1,2],[0,0,2],[1,0,2],[1,1,2]]) # Cube
-points=mulToAll([25,25,25],[[0,1,0],[0,0,0],[1,0,0],[1,1,0],[0,1,1],[0,0,1],[1,0,1],[1,1,1],[-0.5,1.5,2],[-0.5,-0.5,2],[1.5,-0.5,2],[1.5,1.5,2]]) # Cube
-netlist = [
+points0=v.mulToAll([60,60,60],[[0,1,0],[0,0,0],[1,0,0],[1,1,0],[0,1,1],[0,0,1],[1,0,1],[1,1,1],[0,1,2],[0,0,2],[1,0,2],[1,1,2]]) # Cube
+points0=v.mulToAll([35,35,35],[[0,1,0],[0,0,0],[1,0,0],[1,1,0],[0,1,1],[0,0,1],[1,0,1],[1,1,1],[-0.5,1.5,2],[-0.5,-0.5,2],[1.5,-0.5,2],[1.5,1.5,2]]) # Cube
+netlist0 = [
     [1,3,4],    # 0
     [2,5],      # 1
     [3,6],      # 2
@@ -339,71 +317,54 @@ netlist = [
 ]
 
 #Pyramide
-points = mulToAll([20,20,20],[[1,1,0],[-1,1,0],[-1,-1,0],[1,-1,0],[0,0,1]])
-netlist = [[1,3,4],[2,4],[3,4],[4],[]]
+points0 = v.mulToAll([20,20,20],[[1,1,0],[-1,1,0],[-1,-1,0],[1,-1,0],[0,0,1]])
+netlist0 = [[1,3,4],[2,4],[3,4],[4],[]]
 
 
 # Air Window Outlet
-points=mulToAll([150/2,150/2,150],[
+points0=v.mulToAll([150/2,150/2,150],[
     [-1,-1,0],[1,-1,0],
     [-1,1,1],[1,1,1],[1,-1,1],[-1,-1,1],])+\
-addToAll([0,0,150*2],mulToAll([195,30,30],[
+v.addToAll([0,0,150*2],v.mulToAll([190/2,34/2,30],[
     [-1,1,0],[1,1,0],[1,-1,0],[-1,-1,0],]))+\
-addToAll([0,0,150*2+30],mulToAll([195,30,295],[
-    [-1,1,0],[1,1,0],[1,-1,0],[-1,-1,0],
-    [-1,1,1],[1,1,1],[1,-1,1],[-1,-1,1],]))+\
-addToAll([0,0,150*2+30+295*2],mulToAll([195,30,30],[
+v.addToAll([0,0,150*2+30],v.mulToAll([190/2,30/2,290],[
+    [-1,1,0],[1,1,0],[1,-1,0],[-1,-1,0],]))+\
+v.addToAll([0,0,150*2+30+290],v.mulToAll([190/2,30/2,230],[
+    [-1,1,0],[1,1,0],[1,-1,0],[-1,-1,0],]))+\
+v.addToAll([0,0,150*2+30+290+230],v.mulToAll([190/2,30/2,30],[
     [-1,1,0],[1,1,0],[1,-1,0],[-1,-1,0],
     [-1,1,1],[1,1,1],[1,-1,2],[-1,-1,2],
-    [1,0,3],[-1,0,3],
-    [1,1,4],[-1,1,4],]))
-points = addToAll([0,0,-(150*2+30+295*2+30*4)],mulToAll([1/6,1/3,1],points))
-netlist = [[1,2,5],[3,4]]+\
-          [vAdd(vScal([1,1,1],2+iz*4),[i,(i+3)%4,i+4]) for iz in range(5) for i in range(4)]+\
-    [[23,25,27,29],[24,26,28],[26,25],[27],
-     [27,28],[29],
-     [29],[]]
+#    [1,0,3],[-1,0,3],
+#    [1,1,4],[-1,1,4],
+    ]))
+#points = mulToAll([1/8,1/5,1/3],addToAll([0,0,-(150*2+30+295*2+30*4)],points))
+netlist0 = [[1,2,5],[3,4]] + \
+           [v.add(v.scal([1, 1, 1], 2 + iz * 4), [i, (i + 3) % 4, i + 4]) for iz in range(5) for i in range(4)] + \
+           [[23,25],[24],[25],[]]
+#    [[23,25,27,29],[24,26,28],[26,25],[27],
+#     [27,28],[29],
+#     [29],[]]
 #Sum Edges 59
 
-#Three Edge Test
-points = mulToAll([60,60,60],[[-1,1,0],[1,1,0],[1,-1,0],[-1,-1,0],[-1,0,1],[1,0,1],[-1,1,2],[1,1,2]])
+
+
+#Three Edge Test TODO: Does not work yet. Buggy minimumSpaceLeft/Right, Maybe wrong calculated angles or wrong chosen points
+points0 = v.mulToAll([60,60,60],[[-1,1,0],[1,1,0],[1,-1,0],[-1,-1,0],[-1,0,1],[1,0,1],[-1,1,3],[1,1,3]])
+netlist0 = [[1,3,4,6],[2,5,7],[3,5],[4],[5,6],[7],[7],[]]
+
+points=v.mulToAll([60,60,60],[[0,1,0],[0,0,0],[1,0,0],[1,1,0],[0,1,1],[0,0,1],[1,0,1],[1,1,1]])
 netlist = [[1,3,4,6],[2,5,7],[3,5],[4],[5,6],[7],[7],[]]
 
-nodeCnt = len(netlist)
-fullNetlist = [[] for i in range(nodeCnt)]
-for n0 in range(len(netlist)):
-    for n1 in netlist[n0]:
-        if n1 not in fullNetlist[n0]:
-            fullNetlist[n0].append(n1)
-        if n0 not in fullNetlist[n1]:
-            fullNetlist[n1].append(n0)
-netlist = fullNetlist
+notUsedFaces=[]
 
-facesAll = []
-for nodeNr in range(nodeCnt):
-    facesAll = addFaces(facesAll, findFaces(netlist, [nodeNr]))
-#Remove nested faces
-facesSel = []
-for face in facesAll:
-        sumFaces = [0 for faceSearch in facesAll if len(face) > len(faceSearch) and len([0 for faceSearchCorner in faceSearch if faceSearchCorner in face]) == len(faceSearch)]
-        if not sumFaces: # TODO Allow Outside Edges => 1
-            facesSel.append(face)
-            continue
-facesAll = facesSel
-# Remove faces in the inner of the body
-facesSel = []
-for face in facesAll:
-    for side in range(len(face)):
-        sumFaces = len([0 for faceSearch in facesAll if face[side] in faceSearch and face[(side+1)%len(face)] in faceSearch])
-        if sumFaces == 2:
-            facesSel.append(face)
-            break
-facesAll = facesSel
+netlist = createFullNetlist(netlist)
+facesAll = createFaces(netlist)
+facesAll = removeFaces(facesAll, notUsedFaces)
 
-centerPoints = vCenter(points)
+centerPoint = v.center(points)
 
-materialStrength = 3
-play = -0.14 #TODO
+materialStrength = 4
+play = -0.15 #TODO -0.14
 coords = [wall(points,wallNr,materialStrength,play,ctWallSize) for wallNr in range(len(facesAll))]
 
 fig = plt.figure()
@@ -419,14 +380,14 @@ posX = space
 posY = space
 maxYInRow = 0
 for cCoords in coords:
-    cPosMin,cPosMax = vlMinMax(cCoords)
+    cPosMin,cPosMax = v.lMinMax(cCoords)
     if posX+cPosMax[0]-cPosMin[0] > size[0]:
         posX = space
         posY += maxYInRow + space
         maxYInRow = 0
     posX -= cPosMin[0]
     maxYInRow = max(cPosMax[1]-cPosMin[1],maxYInRow)
-    export_svg_svgwrite(addToAll([posX,posY-cPosMin[1]], cCoords),engrave=0)
+    export_svg_svgwrite(v.addToAll([posX,posY-cPosMin[1]], cCoords),engrave=0)
     posX += cPosMax[0] + space
 
 dwg.save()
