@@ -39,5 +39,5 @@ def draw3d(points, faces, coords, materialStrength):
     ax.set_zlim3d(-100, 100)
     ax.scatter(*[[p[xyz]-relPos[xyz] for p in points] for xyz in range(3)], label='w1')
     for i in range(len(coords)):
-        drawWall(ax, faces[i], points, materialStrength, coords[i], centerPoint, relPos, displayInner=0,displayOuter=0,displayCenter=1)
+        drawWall(ax, faces[i], points, materialStrength, coords[i], centerPoint, relPos, displayInner=1,displayOuter=1,displayCenter=0)
     plt.show()

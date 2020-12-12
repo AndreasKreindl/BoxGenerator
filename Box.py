@@ -6,6 +6,15 @@ import Draw2dSolution as draw2d
 import ComputeWall as wall
 import ComputeNetlistFaces as nlf
 
+# Info:
+# Sometimes the result looks wrong because of the negative clearance (a laser will remove some material)
+# Sometimes the result looks wrong because of the scaling of the 3d plot
+# Please help me to fix bugs!
+# Points: List of coordinates
+# Netlist: List of connections between Coordinates (list of index)
+
+
+
 def computeResult(points, netlistIn, notUsedFaces, materialStrength, clearance, connectionType=wall.ctWallSize):
     netlist, faces = nlf.computeNetlistFaces(netlistIn,notUsedFaces)
     coords = [wall.computeWall(faces, points, wallNr, materialStrength, clearance, connectionType) for wallNr in range(len(faces))]
@@ -82,12 +91,12 @@ netlist0 = [[1,2,5],[3,4]] + \
 
 
 #Three Edge Test TODO: Does not work yet. Buggy minimumSpaceLeft/Right, Maybe wrong calculated angles or wrong chosen points
-points = v.mulToAll([60,60,60],[[-1,1,0],[1,1,0],[1,-1,0],[-1,-1,0],[-1,0,1],[1,0,1],[-1,1,3],[1,1,3]])
-netlist = [[1,3,4,6],[2,5,7],[3,5],[4],[5,6],[7],[7],[]]
+points0 = v.mulToAll([60,60,60],[[-1,1,0],[1,1,0],[1,-1,0],[-1,-1,0],[-1,0,1],[1,0,1],[-1,1,3],[1,1,3]])
+netlist0 = [[1,3,4,6],[2,5,7],[3,5],[4],[5,6],[7],[7],[]]
 
 
-points0 = v.mulToAll([20,20,30],[[1,1,0],[-1,1,0],[-1,-1,0],[1,-1,0],[0,0,1]])
-netlist0 = [[1,3,4],[2,4],[3,4],[4],[]]
+points = v.mulToAll([20,20,30],[[1,1,0],[-1,1,0],[-1,-1,0],[1,-1,0],[0,0,1]])
+netlist = [[1,3,4],[2,4],[3,4],[4],[]]
 
 notUsedFaces=[]
 materialStrength = 4
